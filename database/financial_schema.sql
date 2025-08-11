@@ -443,6 +443,21 @@ CREATE TABLE IF NOT EXISTS Clients (
   FOREIGN KEY (route_id) REFERENCES routes(id)
 ); 
 
+-- Client Assignment Table
+CREATE TABLE IF NOT EXISTS ClientAssignment (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  salesRepId INT NOT NULL,
+  outletId INT NOT NULL,
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  assigned_by INT,
+  status ENUM('active', 'inactive') DEFAULT 'active',
+  notes TEXT,
+  FOREIGN KEY (salesRepId) REFERENCES SalesRep(id) ON DELETE CASCADE,
+  FOREIGN KEY (outletId) REFERENCES Clients(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_by) REFERENCES users(id),
+  UNIQUE KEY unique_assignment (salesRepId, outletId)
+);
+
 -- HR Calendar Tasks
 CREATE TABLE IF NOT EXISTS hr_calendar_tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,

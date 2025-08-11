@@ -38,6 +38,13 @@ router.delete('/sales-reps/:id/managers/:managerId', salesController.unassignMan
 // Get a single sales rep by ID
 router.get('/sales-reps/:id', salesController.getSalesRepById);
 
+// Get client assignments for a sales rep
+router.get('/sales-reps/:id/client-assignments', salesController.getSalesRepClientAssignments);
+
+// Assign/unassign clients to sales reps
+router.post('/sales-reps/client-assignments', salesController.assignClientToSalesRep);
+router.delete('/sales-reps/:salesRepId/client-assignments/:outletId', salesController.unassignClientFromSalesRep);
+
 // Key account targets for sales rep
 router.get('/sales-reps/:id/key-account-targets', salesController.getKeyAccountTargets);
 router.post('/sales-reps/:id/key-account-targets', salesController.addKeyAccountTargets);
@@ -80,5 +87,14 @@ router.get('/rep/journey-details', salesController.getJourneyDetails);
 
 // Get reports for a sales rep and client
 router.get('/rep/reports', salesController.getSalesRepReports);
+
+// Test endpoint to check Clients table
+router.get('/test-clients', salesController.testClientsTable);
+
+// Basic data test endpoint
+router.get('/test-basic-data', salesController.testBasicData);
+
+// Clients list for assignment modal
+router.get('/clients/basic', salesController.getAllClientsBasic);
 
 module.exports = router; 

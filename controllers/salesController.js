@@ -1055,3 +1055,462 @@ exports.getSalesRepReports = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch sales rep reports', details: err.message });
   }
 };
+
+// Get client assignments for a sales rep
+exports.getSalesRepClientAssignments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('=== START: getSalesRepClientAssignments ===');
+    console.log('Request params:', req.params);
+    console.log('Request query:', req.query);
+    console.log('Request body:', req.body);
+    
+    if (!id) {
+      console.log('ERROR: No sales rep ID provided');
+      return res.status(400).json({ error: 'Sales rep ID is required' });
+    }
+
+    console.log(`=== Fetching client assignments for sales rep ID: ${id} ===`);
+    console.log('ID type:', typeof id);
+    console.log('ID value:', id);
+
+    // Get clients that are assigned to this sales rep through the ClientAssignment table
+    const query = `
+      SELECT 
+        c.id,
+        c.name as outlet_name,
+        c.address,
+        c.email,
+        c.contact as phone,
+        c.countryId,
+        c.region_id,
+        c.route_id_update,
+        ca.status as assignment_status
+      FROM ClientAssignment ca
+      INNER JOIN Clients c ON ca.outletId = c.id
+      WHERE ca.salesRepId = ? AND (ca.status IS NULL OR LOWER(ca.status) = 'active')
+      ORDER BY c.name ASC
+    `;
+
+    console.log('Executing query:', query);
+    console.log('Query parameters:', [id]);
+    console.log('About to execute database query...');
+
+    try {
+      console.log('Executing db.query with params:', [id]);
+      const [clients] = await db.query(query, [id]);
+      console.log(`Query executed successfully. Found ${clients.length} assigned clients for sales rep ${id}`);
+      console.log('Raw query result:', clients);
+      console.log('Clients array type:', Array.isArray(clients));
+      console.log('Clients array length:', clients.length);
+      
+      // Check if we have any clients
+      if (clients.length === 0) {
+        console.log('No clients found for this sales rep in ClientAssignment (status=active). Returning empty list.');
+        // Intentionally not falling back to any clients list; UI should show "No outlets assigned"
+      }
+      
+      console.log('Preparing final response...');
+      const response = {
+        salesRepId: parseInt(id),
+        totalOutlets: clients.length,
+        outlets: clients
+      };
+      console.log('Final response object:', response);
+      
+      console.log('Sending response...');
+      res.json(response);
+      console.log('Response sent successfully');
+      
+    } catch (dbError) {
+      console.error('=== DATABASE ERROR ===');
+      console.error('Database error:', dbError);
+      console.error('Error code:', dbError.code);
+      console.error('Error message:', dbError.message);
+      console.error('Error stack:', dbError.stack);
+      console.error('Full error object:', JSON.stringify(dbError, null, 2));
+      
+      // If the ClientAssignment table doesn't exist yet, return empty result
+      if (dbError.code === 'ER_NO_SUCH_TABLE') {
+        console.log('ClientAssignment table does not exist yet, returning empty result');
+        res.json({
+          salesRepId: parseInt(id),
+          totalOutlets: 0,
+          outlets: [],
+          note: 'ClientAssignment table not yet created'
+        });
+      } else {
+        console.log('Sending 500 error response...');
+        res.status(500).json({ error: 'Database query failed', details: dbError.message });
+      }
+    }
+    
+    console.log('=== END: getSalesRepClientAssignments ===');
+  } catch (err) {
+    console.error('=== TOP LEVEL ERROR ===');
+    console.error('Error fetching sales rep client assignments:', err);
+    console.error('Error type:', typeof err);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    console.error('Full error object:', JSON.stringify(err, null, 2));
+    
+    res.status(500).json({ error: 'Failed to fetch client assignments', details: err.message });
+  }
+};
+
+// Test endpoint to check Clients table
+exports.testClientsTable = async (req, res) => {
+  try {
+    console.log('Testing Clients table...');
+    
+    // Check what tables exist
+    try {
+      const [tables] = await db.query('SHOW TABLES');
+      console.log('All tables in database:', tables);
+    } catch (e) {
+      console.log('Could not show tables:', e.message);
+    }
+    
+    // Check if Clients table exists and has data
+    try {
+      const [clients] = await db.query('SELECT COUNT(*) as count FROM Clients');
+      console.log('Total clients in database:', clients[0].count);
+    } catch (e) {
+      console.log('Clients table error:', e.message);
+    }
+    
+    // Check if clients table (lowercase) exists
+    try {
+      const [clientsLower] = await db.query('SELECT COUNT(*) as count FROM clients');
+      console.log('Total clients in lowercase table:', clientsLower[0].count);
+    } catch (e) {
+      console.log('clients table (lowercase) error:', e.message);
+    }
+    
+    // Get the actual table structure
+    try {
+      const [tableStructure] = await db.query('DESCRIBE Clients');
+      console.log('Clients table structure:', tableStructure);
+    } catch (e) {
+      console.log('Could not describe Clients table:', e.message);
+    }
+    
+    // Get sample clients with all columns
+    try {
+      const [sampleClients] = await db.query('SELECT * FROM Clients LIMIT 3');
+      console.log('Sample clients (all columns):', sampleClients);
+    } catch (e) {
+      console.log('Could not get sample clients:', e.message);
+    }
+    
+    // Check if ClientAssignment table exists
+    try {
+      const [assignmentTable] = await db.query('SELECT COUNT(*) as count FROM ClientAssignment');
+      console.log('ClientAssignment table exists with', assignmentTable[0].count, 'assignments');
+      
+      // Seed if empty (even when table exists)
+      if (assignmentTable[0].count === 0) {
+        console.log('ClientAssignment table is empty. Seeding sample assignments...');
+        try {
+          const [salesReps] = await db.query('SELECT id FROM SalesRep LIMIT 3');
+          const [clients] = await db.query('SELECT id FROM Clients LIMIT 5');
+          if (salesReps.length > 0 && clients.length > 0) {
+            for (let i = 0; i < clients.length; i++) {
+              const salesRepId = salesReps[i % salesReps.length].id;
+              const clientId = clients[i].id;
+              await db.query(
+                'INSERT INTO ClientAssignment (salesRepId, outletId) VALUES (?, ?)',
+                [salesRepId, clientId]
+              );
+            }
+            console.log(`Seeded ${clients.length} sample assignments`);
+          } else {
+            console.log('Cannot seed assignments: missing sales reps or clients');
+          }
+        } catch (seedErr) {
+          console.log('Failed to seed ClientAssignment:', seedErr.message);
+        }
+      }
+      
+      // Check if the table has the correct structure
+      try {
+        const [tableStructure] = await db.query('DESCRIBE ClientAssignment');
+        console.log('ClientAssignment table structure:', tableStructure);
+        
+        // Check for legacy/mismatched structure
+        const hasAssignedAtCamel = tableStructure.some(col => col.Field === 'assignedAt');
+        const hasAssignedAtSnake = tableStructure.some(col => col.Field === 'assigned_at');
+        const hasAssignedBy = tableStructure.some(col => col.Field === 'assigned_by');
+        const statusCol = tableStructure.find(col => col.Field === 'status');
+        const statusIsVarchar = statusCol && /varchar/i.test(statusCol.Type || '');
+        if (!hasAssignedAtCamel || hasAssignedAtSnake || hasAssignedBy || !statusIsVarchar) {
+          console.log('ClientAssignment structure mismatch (assignedAt missing, or legacy columns present). Dropping and recreating...');
+          await db.query('DROP TABLE ClientAssignment');
+          console.log('Old table dropped');
+          throw new Error('Table needs recreation');
+        }
+      } catch (structureError) {
+        console.log('Could not check table structure or needs recreation:', structureError.message);
+      }
+    } catch (e) {
+      console.log('ClientAssignment table does not exist or needs recreation:', e.message);
+      
+      // Create the ClientAssignment table if it doesn't exist
+      try {
+        console.log('Creating ClientAssignment table...');
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS ClientAssignment (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            outletId INT(11) NOT NULL,
+            salesRepId INT(11) NOT NULL,
+            assignedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+            status VARCHAR(191) NOT NULL DEFAULT 'active',
+            FOREIGN KEY (salesRepId) REFERENCES SalesRep(id) ON DELETE CASCADE,
+            FOREIGN KEY (outletId) REFERENCES Clients(id) ON DELETE CASCADE,
+            UNIQUE KEY unique_assignment (salesRepId, outletId)
+          )
+        `);
+        console.log('ClientAssignment table created successfully');
+        
+        // Add some sample assignments for testing
+        try {
+          const [existingAssignments] = await db.query('SELECT COUNT(*) as count FROM ClientAssignment');
+          if (existingAssignments[0].count === 0) {
+            console.log('Adding sample client assignments...');
+            
+            // Get first few sales reps and clients
+            const [salesReps] = await db.query('SELECT id FROM SalesRep LIMIT 3');
+            const [clients] = await db.query('SELECT id FROM Clients LIMIT 5');
+            
+            if (salesReps.length > 0 && clients.length > 0) {
+              // Assign each client to a sales rep (round-robin)
+              for (let i = 0; i < clients.length; i++) {
+                const salesRepId = salesReps[i % salesReps.length].id;
+                const clientId = clients[i].id;
+                
+                await db.query(
+                  'INSERT INTO ClientAssignment (salesRepId, outletId) VALUES (?, ?)',
+                  [salesRepId, clientId]
+                );
+              }
+              console.log(`Added ${clients.length} sample assignments`);
+            }
+          }
+        } catch (sampleError) {
+          console.log('Could not add sample assignments:', sampleError.message);
+        }
+      } catch (createError) {
+        console.error('Failed to create ClientAssignment table:', createError);
+      }
+    }
+    
+    // Check related tables
+    try {
+      const [countries] = await db.query('SELECT COUNT(*) as count FROM Country');
+      console.log('Countries table count:', countries[0].count);
+    } catch (e) {
+      console.log('Countries table error:', e.message);
+    }
+    
+    try {
+      const [regions] = await db.query('SELECT COUNT(*) as count FROM Regions');
+      console.log('Regions table count:', regions[0].count);
+    } catch (e) {
+      console.log('Regions table error:', e.message);
+    }
+    
+    try {
+      const [routes] = await db.query('SELECT COUNT(*) as count FROM routes');
+      console.log('Routes table count:', routes[0].count);
+    } catch (e) {
+      console.log('Routes table error:', e.message);
+    }
+    
+    res.json({
+      message: 'Clients table test completed',
+      totalClients: clients ? clients[0].count : 0,
+      sampleClients: sampleClients || [],
+      tables: {
+        clients: 'exists',
+        clientAssignment: 'exists',
+        countries: countries ? 'exists' : 'missing',
+        regions: regions ? 'exists' : 'missing',
+        routes: routes ? 'exists' : 'missing'
+      }
+    });
+  } catch (err) {
+    console.error('Error testing Clients table:', err);
+    res.status(500).json({ error: 'Failed to test Clients table', details: err.message });
+  }
+};
+
+// Simple test endpoint to check basic data access
+exports.testBasicData = async (req, res) => {
+  try {
+    console.log('=== Testing basic data access ===');
+    
+    const results = {};
+    
+    // Test SalesRep table
+    try {
+      const [salesReps] = await db.query('SELECT id, name FROM SalesRep LIMIT 3');
+      results.salesReps = salesReps;
+      console.log('SalesRep data:', salesReps);
+    } catch (e) {
+      results.salesReps = { error: e.message };
+      console.log('SalesRep error:', e.message);
+    }
+    
+    // Test Clients table
+    try {
+      const [clients] = await db.query('SELECT id, name FROM Clients LIMIT 3');
+      results.clients = clients;
+      console.log('Clients data:', clients);
+    } catch (e) {
+      results.clients = { error: e.message };
+      console.log('Clients error:', e.message);
+    }
+    
+    // Test ClientAssignment table
+    try {
+      const [assignments] = await db.query('SELECT * FROM ClientAssignment LIMIT 3');
+      results.assignments = assignments;
+      console.log('ClientAssignment data:', assignments);
+    } catch (e) {
+      results.assignments = { error: e.message };
+      console.log('ClientAssignment error:', e.message);
+    }
+    
+    res.json({
+      message: 'Basic data test completed',
+      results
+    });
+  } catch (err) {
+    console.error('Error in basic data test:', err);
+    res.status(500).json({ error: 'Failed to test basic data', details: err.message });
+  }
+};
+
+// Assign a client to a sales rep
+exports.assignClientToSalesRep = async (req, res) => {
+  try {
+    const { salesRepId, outletId, notes } = req.body;
+    
+    if (!salesRepId || !outletId) {
+      return res.status(400).json({ error: 'Sales rep ID and outlet ID are required' });
+    }
+
+    console.log(`Assigning outlet ${outletId} to sales rep ${salesRepId}`);
+
+    // Check if assignment already exists
+    const [existingAssignment] = await db.query(
+      'SELECT * FROM ClientAssignment WHERE salesRepId = ? AND outletId = ?',
+      [salesRepId, outletId]
+    );
+
+    if (existingAssignment.length > 0) {
+      // Update existing assignment if it's inactive
+      if (existingAssignment[0].status === 'inactive') {
+        await db.query(
+          'UPDATE ClientAssignment SET status = "active" WHERE id = ?',
+          [existingAssignment[0].id]
+        );
+        
+        console.log(`Reactivated assignment for outlet ${outletId} to sales rep ${salesRepId}`);
+        
+        res.json({
+          message: 'Outlet assignment reactivated successfully',
+          assignmentId: existingAssignment[0].id,
+          salesRepId: parseInt(salesRepId),
+          outletId: parseInt(outletId)
+        });
+      } else {
+        return res.status(400).json({ error: 'Outlet is already assigned to this sales rep' });
+      }
+    } else {
+      // Create new assignment
+      const [result] = await db.query(
+        'INSERT INTO ClientAssignment (salesRepId, outletId) VALUES (?, ?)',
+        [salesRepId, outletId]
+      );
+
+      console.log(`Successfully assigned outlet ${outletId} to sales rep ${salesRepId}`);
+
+      res.status(201).json({
+        message: 'Outlet assigned successfully',
+        assignmentId: result.insertId,
+        salesRepId: parseInt(salesRepId),
+        outletId: parseInt(outletId)
+      });
+    }
+  } catch (err) {
+    console.error('Error assigning outlet to sales rep:', err);
+    
+    // If the ClientAssignment table doesn't exist yet, provide helpful error
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      res.status(500).json({ 
+        error: 'ClientAssignment table not yet created. Please create the table first.',
+        details: 'Run the database migration to create the ClientAssignment table'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to assign outlet', details: err.message });
+    }
+  }
+};
+
+// Unassign a client from a sales rep
+exports.unassignClientFromSalesRep = async (req, res) => {
+  try {
+    const { salesRepId, outletId } = req.params;
+    
+    if (!salesRepId || !outletId) {
+      return res.status(400).json({ error: 'Sales rep ID and outlet ID are required' });
+    }
+
+    console.log(`Unassigning outlet ${outletId} from sales rep ${salesRepId}`);
+
+    // Soft delete by setting status to inactive
+    const [result] = await db.query(
+      'UPDATE ClientAssignment SET status = "inactive" WHERE salesRepId = ? AND outletId = ?',
+      [salesRepId, outletId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    console.log(`Successfully unassigned outlet ${outletId} from sales rep ${salesRepId}`);
+
+    res.json({
+      message: 'Outlet unassigned successfully',
+      salesRepId: parseInt(salesRepId),
+      outletId: parseInt(outletId)
+    });
+  } catch (err) {
+    console.error('Error unassigning outlet from sales rep:', err);
+    
+    // If the ClientAssignment table doesn't exist yet, provide helpful error
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      res.status(500).json({ 
+        error: 'ClientAssignment table not yet created. Please create the table first.',
+        details: 'Run the database migration to create the ClientAssignment table'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to unassign outlet', details: err.message });
+    }
+  }
+};
+
+// Get basic clients list for assignment modal
+exports.getAllClientsBasic = async (req, res) => {
+  try {
+    const [clients] = await db.query(
+      'SELECT id, name, address, email, contact as phone FROM Clients ORDER BY name ASC'
+    );
+    res.json(clients);
+  } catch (err) {
+    console.error('Error fetching clients list:', err);
+    res.status(500).json({ error: 'Failed to fetch clients', details: err.message });
+  }
+};
