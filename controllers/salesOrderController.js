@@ -4,15 +4,15 @@ const salesOrderController = {
   // Get all sales orders
   getAllSalesOrders: async (req, res) => {
     try {
-      console.log('Fetching all sales orders with my_status = 1...');
+      console.log('Fetching all sales orders with my_status = 3...');
       
       // First, let's check how many sales orders exist in total
       const [totalOrders] = await db.query('SELECT COUNT(*) as total FROM sales_orders');
       console.log('Total sales orders in database:', totalOrders[0].total);
       
-      // Check how many have my_status = 1
-      const [confirmedOrders] = await db.query('SELECT COUNT(*) as confirmed FROM sales_orders WHERE my_status = 1');
-      console.log('Sales orders with my_status = 1:', confirmedOrders[0].confirmed);
+      // Check how many have my_status = 3
+      const [confirmedOrders] = await db.query('SELECT COUNT(*) as confirmed FROM sales_orders WHERE my_status = 3');
+      console.log('Sales orders with my_status = 3:', confirmedOrders[0].confirmed);
       
       const [rows] = await db.query(`
         SELECT 
@@ -25,7 +25,7 @@ const salesOrderController = {
         LEFT JOIN Clients c ON so.client_id = c.id
         LEFT JOIN users u ON so.created_by = u.id
         LEFT JOIN SalesRep sr ON so.salesrep = sr.id
-        WHERE so.my_status = 1
+        WHERE so.my_status = 3
         ORDER BY so.created_at DESC
       `);
       
@@ -88,9 +88,9 @@ const salesOrderController = {
       const [draftOrders] = await db.query('SELECT COUNT(*) as drafts FROM sales_orders WHERE my_status = 0');
       console.log('Sales orders with my_status = 0 (drafts):', draftOrders[0].drafts);
       
-      // Check how many have my_status = 1 (confirmed)
-      const [confirmedOrders] = await db.query('SELECT COUNT(*) as confirmed FROM sales_orders WHERE my_status = 1');
-      console.log('Sales orders with my_status = 1 (confirmed):', confirmedOrders[0].confirmed);
+      // Check how many have my_status = 3 (completed)
+      const [confirmedOrders] = await db.query('SELECT COUNT(*) as completed FROM sales_orders WHERE my_status = 3');
+      console.log('Sales orders with my_status = 3 (completed):', confirmedOrders[0].completed);
       
       const [rows] = await db.query(`
         SELECT 
@@ -374,7 +374,7 @@ const salesOrderController = {
       // Use provided client_id or customer_id, otherwise keep existing client_id
       const clientId = client_id || customer_id || existingSO[0].client_id;
       
-      const itemsLocked = (existingSO[0].my_status >= 1);
+      const itemsLocked = (existingSO[0].my_status >= 3);
       let subtotal = 0;
       let taxAmount = 0;
       let totalAmount = 0;
@@ -815,7 +815,7 @@ const salesOrderController = {
       await connection.query(`
         UPDATE sales_orders 
         SET status = 'confirmed',
-            my_status = 1,
+            my_status = 3,
             expected_delivery_date = COALESCE(?, expected_delivery_date),
             notes = COALESCE(?, notes),
             subtotal = ?,

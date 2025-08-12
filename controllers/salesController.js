@@ -653,8 +653,34 @@ exports.getMasterSalesData = async (req, res) => {
     const categories = category ? (Array.isArray(category) ? category : [category]) : [];
     const salesReps = salesRep ? (Array.isArray(salesRep) ? salesRep : [salesRep]) : [];
 
-    // Get all clients with their sales data for each month
-    const [rows] = await db.query(`
+    // Debug: Check how many orders exist with my_status = 3
+    const [statusCheck] = await db.query(`
+      SELECT 
+        COUNT(*) as total_orders,
+        COUNT(CASE WHEN my_status = 1 THEN 1 END) as status_1_approved,
+        COUNT(CASE WHEN my_status = 3 THEN 1 END) as status_3_completed,
+        COUNT(CASE WHEN my_status = 4 THEN 1 END) as status_4_delivered
+      FROM sales_orders 
+      WHERE YEAR(order_date) = ?
+    `, [currentYear]);
+    
+    console.log('Master Sales Debug - Order Status Counts:', statusCheck[0]);
+
+    // Debug: Check if there are any completed orders with items
+    const [completedOrdersCheck] = await db.query(`
+      SELECT 
+        COUNT(DISTINCT so.id) as completed_orders,
+        COUNT(soi.id) as total_items,
+        SUM(soi.quantity * soi.unit_price) as total_value
+      FROM sales_orders so
+      JOIN sales_order_items soi ON so.id = soi.sales_order_id
+      WHERE so.my_status = 3 AND YEAR(so.order_date) = ?
+    `, [currentYear]);
+    
+    console.log('Master Sales Debug - Completed Orders with Items:', completedOrdersCheck[0]);
+
+    // Build the main query
+    const mainQuery = `
       SELECT 
         c.id as client_id,
         c.name as client_name,
@@ -672,7 +698,7 @@ exports.getMasterSalesData = async (req, res) => {
         COALESCE(SUM(CASE WHEN MONTH(so.order_date) = 12 AND YEAR(so.order_date) = ? THEN soi.quantity * soi.unit_price ELSE 0 END), 0) as december,
         COALESCE(SUM(CASE WHEN YEAR(so.order_date) = ? THEN soi.quantity * soi.unit_price ELSE 0 END), 0) as total
       FROM Clients c
-      LEFT JOIN sales_orders so ON c.id = so.client_id AND so.my_status = 1
+      LEFT JOIN sales_orders so ON c.id = so.client_id AND so.my_status = 3
       LEFT JOIN sales_order_items soi ON so.id = soi.sales_order_id
       LEFT JOIN products p ON soi.product_id = p.id
       LEFT JOIN Category cat ON p.category_id = cat.id
@@ -705,7 +731,12 @@ exports.getMasterSalesData = async (req, res) => {
       })()}
       GROUP BY c.id, c.name
       ORDER BY c.name
-    `, (() => {
+    `;
+
+    console.log('Master Sales Debug - Main Query:', mainQuery);
+
+    // Get all clients with their sales data for each month
+    const [rows] = await db.query(mainQuery, (() => {
       const params = [currentYear, currentYear, currentYear, currentYear, currentYear, currentYear, 
         currentYear, currentYear, currentYear, currentYear, currentYear, currentYear, currentYear];
       if (categories.length > 0) params.push(...categories);
@@ -714,6 +745,14 @@ exports.getMasterSalesData = async (req, res) => {
       if (endDate) params.push(endDate);
       return params;
     })());
+
+    console.log(`Master Sales Debug - Found ${rows.length} clients with sales data for year ${currentYear}`);
+    if (rows.length > 0) {
+      console.log(`Master Sales Debug - Sample row:`, rows[0]);
+      console.log(`Master Sales Debug - Sample row total:`, rows[0].total);
+    } else {
+      console.log('Master Sales Debug - No rows found');
+    }
 
     res.json(rows);
   } catch (err) {
@@ -731,7 +770,7 @@ exports.getMasterSalesCategories = async (req, res) => {
       JOIN products p ON cat.id = p.category_id
       JOIN sales_order_items soi ON p.id = soi.product_id
       JOIN sales_orders so ON soi.sales_order_id = so.id
-      WHERE so.my_status = 1
+      WHERE so.my_status = 3
       ORDER BY cat.name
     `);
     res.json(rows);
@@ -749,7 +788,7 @@ exports.getMasterSalesSalesReps = async (req, res) => {
       FROM SalesRep sr
       JOIN Clients c ON sr.route_id_update = c.route_id_update
       JOIN sales_orders so ON c.id = so.client_id
-      WHERE so.my_status = 1
+      WHERE so.my_status = 3
       ORDER BY sr.name
     `);
     res.json(rows);
