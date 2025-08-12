@@ -7,7 +7,7 @@ exports.getAllAvailabilityReports = async (req, res) => {
     const isViewAll = parseInt(limit) === -1;
     const offset = isViewAll ? 0 : (parseInt(page) - 1) * parseInt(limit);
     let sql = `
-      SELECT ar.id, ar.reportId, ar.comment, ar.createdAt,
+      SELECT ar.id, ar.comment, ar.createdAt,
              c.name AS clientName, co.name AS countryName, u.name AS salesRepName,
              ar.ProductName AS productName,ar.comment AS comment, ar.quantity
       FROM ProductReport ar
@@ -90,7 +90,7 @@ exports.exportAvailabilityReportsCSV = async (req, res) => {
     console.log('Availability reports CSV export route hit!');
     const { startDate, endDate, currentDate, country, salesRep, search } = req.query;
     let sql = `
-      SELECT ar.id, ar.reportId, ar.comment, ar.createdAt,
+      SELECT ar.id, ar.comment, ar.createdAt,
              c.name AS outlet, co.name AS country, u.name AS salesRep
       FROM AvailabilityReport ar
       LEFT JOIN Clients c ON ar.clientId = c.id

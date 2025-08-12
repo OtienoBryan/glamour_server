@@ -7,7 +7,7 @@ exports.getAllFeedbackReports = async (req, res) => {
     const isViewAll = parseInt(limit) === -1;
     const offset = isViewAll ? 0 : (parseInt(page) - 1) * parseInt(limit);
     let sql = `
-      SELECT fr.id, fr.reportId, fr.comment, fr.createdAt,
+      SELECT fr.id, fr.comment, fr.createdAt,
              c.name AS outlet, co.name AS country, u.name AS salesRep
       FROM FeedbackReport fr
       LEFT JOIN Clients c ON fr.clientId = c.id
@@ -91,7 +91,7 @@ exports.exportFeedbackReportsCSV = async (req, res) => {
     console.log('Feedback reports CSV export route hit!');
     const { startDate, endDate, currentDate, country, salesRep, search } = req.query;
     let sql = `
-      SELECT fr.id, fr.reportId, fr.comment, fr.createdAt,
+      SELECT fr.id, fr.comment, fr.createdAt,
              c.name AS outlet, co.name AS country, u.name AS salesRep
       FROM FeedbackReport fr
       LEFT JOIN Clients c ON fr.clientId = c.id

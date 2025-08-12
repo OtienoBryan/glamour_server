@@ -45,6 +45,7 @@ try {
   myAssetsRoutes = require('./routes/myAssetsRoutes');
   faultyProductsRoutes = require('./routes/faultyProductsRoutes');
   storeRoutes = require('./routes/storeRoutes');
+  upliftSalesRoutes = require('./routes/upliftSalesRoutes');
 } catch (error) {
   console.log('Some modules failed to load:', error.message);
 }
@@ -475,10 +476,11 @@ app.use('/api', receiptRoutes);
 app.use('/api/my-assets', myAssetsRoutes);
 app.use('/api/faulty-products', faultyProductsRoutes);
 app.use('/api/stores', storeRoutes);
-app.use('/api', clientRoutes);
+app.use('/api/uplift-sales', upliftSalesRoutes);
 app.use('/api/sales-rep-leaves', salesRepLeaveRoutes);
 app.use('/api/calendar-tasks', calendarTaskRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api', clientRoutes);
 
 // Visibility Reports route
 app.get('/api/visibility-reports', async (req, res) => {
