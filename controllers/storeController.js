@@ -275,13 +275,27 @@ const storeController = {
         ORDER BY product_name
       `);
       
-      // Get all inventory data
-      const [inventory] = await connection.query(`
-        SELECT store_id, product_id, quantity 
-        FROM store_inventory 
-        WHERE store_id IN (${stores.map(s => s.id).join(',')}) 
-        AND product_id IN (${products.map(p => p.id).join(',')})
-      `);
+      // Build ID arrays
+      const storeIds = stores.map(s => s.id);
+      const productIds = products.map(p => p.id);
+
+      let inventory = [];
+      if (storeIds.length === 0 || productIds.length === 0) {
+        console.log('getStockSummary: No stores or products found. Skipping inventory query.');
+      } else {
+        // Parameterized IN clauses
+        const storePlaceholders = storeIds.map(() => '?').join(',');
+        const productPlaceholders = productIds.map(() => '?').join(',');
+        const sql = `
+          SELECT store_id, product_id, quantity 
+          FROM store_inventory 
+          WHERE store_id IN (${storePlaceholders}) 
+          AND product_id IN (${productPlaceholders})
+        `;
+        const params = [...storeIds, ...productIds];
+        const [invRows] = await connection.query(sql, params);
+        inventory = invRows;
+      }
       
       // Create a map for quick lookup
       const inventoryMap = new Map();
