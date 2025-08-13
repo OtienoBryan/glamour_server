@@ -31,8 +31,15 @@ const upliftSalesController = {
       }
       
       if (status) {
-        query += ' AND us.status = ?';
-        params.push(status);
+        const s = String(status).trim().toLowerCase();
+        if (s === '0' || s === 'void') {
+          query += " AND (LOWER(us.status) = '0' OR us.status = 0 OR LOWER(us.status) = 'void' OR LOWER(us.status) = 'cancelled')";
+        } else if (s === '1' || s === 'sale') {
+          query += " AND (LOWER(us.status) = '1' OR us.status = 1 OR LOWER(us.status) = 'sale' OR LOWER(us.status) = 'completed')";
+        } else {
+          query += ' AND LOWER(us.status) = ?';
+          params.push(s);
+        }
       }
       
       if (startDate) {
@@ -84,8 +91,15 @@ const upliftSalesController = {
         countParams.push(userId);
       }
       if (status) {
-        countQuery += ' AND us.status = ?';
-        countParams.push(status);
+        const s = String(status).trim().toLowerCase();
+        if (s === '0' || s === 'void') {
+          countQuery += " AND (LOWER(us.status) = '0' OR us.status = 0 OR LOWER(us.status) = 'void' OR LOWER(us.status) = 'cancelled')";
+        } else if (s === '1' || s === 'sale') {
+          countQuery += " AND (LOWER(us.status) = '1' OR us.status = 1 OR LOWER(us.status) = 'sale' OR LOWER(us.status) = 'completed')";
+        } else {
+          countQuery += ' AND LOWER(us.status) = ?';
+          countParams.push(s);
+        }
       }
       if (startDate) {
         countQuery += ' AND DATE(us.createdAt) >= ?';
