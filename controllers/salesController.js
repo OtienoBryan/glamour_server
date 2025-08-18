@@ -1020,7 +1020,7 @@ exports.getSalesRepReports = async (req, res) => {
   try {
     console.log('Fetching sales rep reports with params:', req.query);
     
-    const { salesRepId, clientId, date } = req.query;
+    const { salesRepId, clientId, start_date, end_date, date } = req.query;
     
     if (!salesRepId || !clientId) {
       return res.status(400).json({ error: 'Sales rep ID and client ID are required' });
@@ -1029,7 +1029,12 @@ exports.getSalesRepReports = async (req, res) => {
     let dateFilter = '';
     const params = [salesRepId, clientId];
     
-    if (date) {
+    // Handle date range filtering (start_date and end_date)
+    if (start_date && end_date) {
+      dateFilter = 'AND DATE(createdAt) BETWEEN ? AND ?';
+      params.push(start_date, end_date);
+    } else if (date) {
+      // Fallback to single date for backward compatibility
       dateFilter = 'AND DATE(createdAt) = ?';
       params.push(date);
     }
