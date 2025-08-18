@@ -12,6 +12,9 @@ router.delete('/:id', clientController.deleteClient);
 router.get('/:id/history', clientController.getClientHistory);
 router.get('/:id/payments', clientController.getClientPayments);
 router.get('/:id/invoices', clientController.getClientInvoices);
+router.get('/:id/stock', clientController.getClientStock);
+router.get('/stock/all', clientController.getAllClientStock);
+router.get('/stock/products', clientController.getProductsWithClientStock);
 // Add other CRUD routes as needed
 
 module.exports = router; 

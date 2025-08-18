@@ -342,6 +342,118 @@ const clientController = {
       res.status(500).json({ message: 'Failed to fetch client invoices', error: error.message });
     }
   },
+
+  // Get client stock
+  getClientStock: async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log(`[getClientStock] called for client_id: ${id}`);
+      
+      const [rows] = await db.query(`
+        SELECT 
+          cs.id,
+          cs.quantity,
+          cs.clientId,
+          cs.productId,
+          cs.salesrepId,
+          p.product_name,
+          p.product_code,
+          p.description,
+          p.category,
+          p.unit_of_measure,
+          p.selling_price,
+          sr.name as salesrep_name,
+          c.name as client_name
+        FROM ClientStock cs
+        LEFT JOIN products p ON cs.productId = p.id
+        LEFT JOIN SalesRep sr ON cs.salesrepId = sr.id
+        LEFT JOIN Clients c ON cs.clientId = c.id
+        WHERE cs.clientId = ?
+        ORDER BY p.product_name ASC
+      `, [id]);
+      
+      console.log(`[getClientStock] returning ${rows.length} stock items for client_id: ${id}`);
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      console.error('[getClientStock] error:', error);
+      res.status(500).json({ message: 'Failed to fetch client stock', error: error.message });
+    }
+  },
+
+  // Get all client stock summary
+  getAllClientStock: async (req, res) => {
+    try {
+      console.log(`[getAllClientStock] called`);
+      
+      const [rows] = await db.query(`
+        SELECT 
+          cs.id,
+          cs.quantity,
+          cs.clientId,
+          cs.productId,
+          cs.salesrepId,
+          p.product_name,
+          p.product_code,
+          p.description,
+          p.category,
+          p.unit_of_measure,
+          p.selling_price,
+          sr.name as salesrep_name,
+          c.name as client_name
+        FROM ClientStock cs
+        LEFT JOIN products p ON cs.productId = p.id
+        LEFT JOIN SalesRep sr ON cs.salesrepId = sr.id
+        LEFT JOIN Clients c ON cs.clientId = c.id
+        ORDER BY p.product_name ASC, c.name ASC
+      `);
+      
+      console.log(`[getAllClientStock] returning ${rows.length} stock items`);
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      console.error('[getAllClientStock] error:', error);
+      res.status(500).json({ message: 'Failed to fetch all client stock', error: error.message });
+    }
+  },
+
+  // Get products with client stock summary
+  getProductsWithClientStock: async (req, res) => {
+    try {
+      console.log(`[getProductsWithClientStock] called`);
+      const { clientId } = req.query;
+      
+      let whereClause = '';
+      let params = [];
+      
+      if (clientId) {
+        whereClause = 'AND cs.clientId = ?';
+        params.push(clientId);
+      }
+      
+      const [rows] = await db.query(`
+        SELECT 
+          p.id as productId,
+          p.product_name,
+          p.product_code,
+          p.description,
+          p.category,
+          p.unit_of_measure,
+          p.selling_price,
+          COALESCE(COUNT(cs.id), 0) as total_clients,
+          COALESCE(SUM(cs.quantity), 0) as total_quantity,
+          COALESCE(SUM(cs.quantity * p.selling_price), 0) as total_value
+        FROM products p
+        LEFT JOIN ClientStock cs ON p.id = cs.productId ${whereClause}
+        GROUP BY p.id, p.product_name, p.product_code, p.description, p.category, p.unit_of_measure, p.selling_price
+        ORDER BY p.product_name ASC
+      `, params);
+      
+      console.log(`[getProductsWithClientStock] returning ${rows.length} products`);
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      console.error('[getProductsWithClientStock] error:', error);
+      res.status(500).json({ message: 'Failed to fetch products with client stock', error: error.message });
+    }
+  },
 };
 
 // Get all client types
